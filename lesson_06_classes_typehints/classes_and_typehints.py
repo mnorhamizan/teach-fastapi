@@ -135,7 +135,7 @@ print(f"Is 20 adult? {is_adult(20)}")
 # ============================================
 print("\n=== Part 5: Type Hints with Collections ===")
 
-from typing import List, Dict, Optional
+from typing import Any, List, Dict, Optional
 
 # List of strings
 def get_names() -> List[str]:
@@ -174,7 +174,7 @@ class Product:
     def total_value(self) -> float:
         return self.price * self.quantity
 
-    def to_dict(self) -> Dict[str, any]:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "name": self.name,
             "price": self.price,
@@ -211,7 +211,7 @@ class User(BaseModel):
 user = User(id=1, name="Alice", email="alice@example.com")
 
 # Convert to dictionary easily
-print(user.dict())
+print(user.model_dump())
 # Output: {'id': 1, 'name': 'Alice', 'email': 'alice@example.com', 'age': None, 'tags': []}
 
 # Pydantic will raise an error if data is invalid:

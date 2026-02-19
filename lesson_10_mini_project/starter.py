@@ -115,6 +115,23 @@ def get_all_todos(
 
 
 # ============================================
+# TODO: Implement STATS endpoint
+# ============================================
+# GET /todos/stats
+# - Return: total, completed, pending counts
+
+@app.get("/todos/stats")
+def get_stats(db: Session = Depends(get_db)):
+    """Get todo statistics."""
+    # TODO: Implement this
+    # Hint:
+    # 1. total = db.query(Todo).count()
+    # 2. completed = db.query(Todo).filter(Todo.completed == True).count()
+    # 3. Return dict with stats
+    pass
+
+
+# ============================================
 # TODO: Implement READ ONE endpoint
 # ============================================
 # GET /todos/{todo_id}
@@ -188,23 +205,6 @@ def toggle_todo(todo_id: int, db: Session = Depends(get_db)):
     # 1. Find todo
     # 2. Toggle: db_todo.completed = not db_todo.completed
     # 3. Commit and refresh
-    pass
-
-
-# ============================================
-# TODO: Implement STATS endpoint
-# ============================================
-# GET /todos/stats
-# - Return: total, completed, pending counts
-
-@app.get("/todos/stats")
-def get_stats(db: Session = Depends(get_db)):
-    """Get todo statistics."""
-    # TODO: Implement this
-    # Hint:
-    # 1. total = db.query(Todo).count()
-    # 2. completed = db.query(Todo).filter(Todo.completed == True).count()
-    # 3. Return dict with stats
     pass
 
 

@@ -20,4 +20,4 @@ class Todo(Base):
     completed = Column(Boolean, default=False)
     priority = Column(Integer, default=1)  # 1=Low, 2=Medium, 3=High
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

@@ -9,8 +9,7 @@ SQLAlchemy is an ORM (Object-Relational Mapper) that lets you:
 """
 
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 # ============================================
 # STEP 1: Database URL
@@ -49,7 +48,8 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 # ============================================
 # All our database models will inherit from this base class
 
-Base = declarative_base()
+class Base(DeclarativeBase):
+    pass
 
 
 # ============================================

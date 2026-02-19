@@ -27,7 +27,7 @@ Project Structure:
 
 from fastapi import FastAPI, HTTPException, status, Depends
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 
 # Import our modules
 from database import engine, get_db, Base
@@ -136,6 +136,55 @@ def get_all_items(
 
 
 # ============================================
+# BONUS: Search Items
+# ============================================
+
+@app.get("/items/search/", response_model=List[ItemResponse])
+def search_items(
+    q: Optional[str] = None,
+    min_price: Optional[float] = None,
+    max_price: Optional[float] = None,
+    db: Session = Depends(get_db)
+):
+    """
+    Search items by name and/or price range.
+
+    - **q**: Search query (searches in name)
+    - **min_price**: Minimum price filter
+    - **max_price**: Maximum price filter
+    """
+    query = db.query(Item)
+
+    if q:
+        query = query.filter(Item.name.ilike(f"%{q}%"))
+
+    if min_price is not None:
+        query = query.filter(Item.price >= min_price)
+
+    if max_price is not None:
+        query = query.filter(Item.price <= max_price)
+
+    return query.all()
+
+
+# ============================================
+# BONUS: Get Items Count
+# ============================================
+
+@app.get("/items/stats/count")
+def get_items_count(db: Session = Depends(get_db)):
+    """Get total count of items in database."""
+    total = db.query(Item).count()
+    available = db.query(Item).filter(Item.is_available == True).count()
+
+    return {
+        "total_items": total,
+        "available_items": available,
+        "unavailable_items": total - available
+    }
+
+
+# ============================================
 # STEP 6: READ ONE - GET /items/{item_id}
 # ============================================
 
@@ -217,55 +266,6 @@ def delete_item(item_id: int, db: Session = Depends(get_db)):
     db.commit()
 
     return None
-
-
-# ============================================
-# BONUS: Search Items
-# ============================================
-
-@app.get("/items/search/", response_model=List[ItemResponse])
-def search_items(
-    q: str = None,
-    min_price: float = None,
-    max_price: float = None,
-    db: Session = Depends(get_db)
-):
-    """
-    Search items by name and/or price range.
-
-    - **q**: Search query (searches in name)
-    - **min_price**: Minimum price filter
-    - **max_price**: Maximum price filter
-    """
-    query = db.query(Item)
-
-    if q:
-        query = query.filter(Item.name.ilike(f"%{q}%"))
-
-    if min_price is not None:
-        query = query.filter(Item.price >= min_price)
-
-    if max_price is not None:
-        query = query.filter(Item.price <= max_price)
-
-    return query.all()
-
-
-# ============================================
-# BONUS: Get Items Count
-# ============================================
-
-@app.get("/items/stats/count")
-def get_items_count(db: Session = Depends(get_db)):
-    """Get total count of items in database."""
-    total = db.query(Item).count()
-    available = db.query(Item).filter(Item.is_available == True).count()
-
-    return {
-        "total_items": total,
-        "available_items": available,
-        "unavailable_items": total - available
-    }
 
 
 # ============================================

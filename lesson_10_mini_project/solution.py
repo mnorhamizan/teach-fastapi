@@ -131,6 +131,81 @@ def get_all_todos(
 
 
 # ============================================
+# STATS - GET /todos/stats
+# ============================================
+
+@app.get("/todos/stats")
+def get_stats(db: Session = Depends(get_db)):
+    """Get todo statistics."""
+    total = db.query(Todo).count()
+    completed = db.query(Todo).filter(Todo.completed == True).count()
+    pending = total - completed
+
+    # Priority breakdown
+    high_priority = db.query(Todo).filter(Todo.priority == 3).count()
+    medium_priority = db.query(Todo).filter(Todo.priority == 2).count()
+    low_priority = db.query(Todo).filter(Todo.priority == 1).count()
+
+    return {
+        "total": total,
+        "completed": completed,
+        "pending": pending,
+        "completion_rate": f"{(completed/total*100):.1f}%" if total > 0 else "0%",
+        "by_priority": {
+            "high": high_priority,
+            "medium": medium_priority,
+            "low": low_priority
+        }
+    }
+
+
+# ============================================
+# BONUS: Search
+# ============================================
+
+@app.get("/todos/search", response_model=List[TodoResponse])
+def search_todos(q: str, db: Session = Depends(get_db)):
+    """
+    Search todos by title.
+
+    - **q**: Search query (case-insensitive)
+    """
+    return db.query(Todo).filter(Todo.title.ilike(f"%{q}%")).all()
+
+
+# ============================================
+# BONUS: Delete All Completed
+# ============================================
+
+@app.delete("/todos/completed", status_code=status.HTTP_204_NO_CONTENT)
+def delete_completed(db: Session = Depends(get_db)):
+    """Delete all completed todos."""
+    db.query(Todo).filter(Todo.completed == True).delete()
+    db.commit()
+    return None
+
+
+# ============================================
+# BONUS: Get by Priority
+# ============================================
+
+@app.get("/todos/priority/{priority}", response_model=List[TodoResponse])
+def get_by_priority(priority: int, db: Session = Depends(get_db)):
+    """
+    Get todos by priority level.
+
+    - **priority**: 1=Low, 2=Medium, 3=High
+    """
+    if priority not in [1, 2, 3]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Priority must be 1 (Low), 2 (Medium), or 3 (High)"
+        )
+
+    return db.query(Todo).filter(Todo.priority == priority).all()
+
+
+# ============================================
 # READ ONE - GET /todos/{todo_id}
 # ============================================
 
@@ -235,81 +310,6 @@ def toggle_todo(todo_id: int, db: Session = Depends(get_db)):
     db.refresh(db_todo)
 
     return db_todo
-
-
-# ============================================
-# STATS - GET /todos/stats
-# ============================================
-
-@app.get("/todos/stats")
-def get_stats(db: Session = Depends(get_db)):
-    """Get todo statistics."""
-    total = db.query(Todo).count()
-    completed = db.query(Todo).filter(Todo.completed == True).count()
-    pending = total - completed
-
-    # Priority breakdown
-    high_priority = db.query(Todo).filter(Todo.priority == 3).count()
-    medium_priority = db.query(Todo).filter(Todo.priority == 2).count()
-    low_priority = db.query(Todo).filter(Todo.priority == 1).count()
-
-    return {
-        "total": total,
-        "completed": completed,
-        "pending": pending,
-        "completion_rate": f"{(completed/total*100):.1f}%" if total > 0 else "0%",
-        "by_priority": {
-            "high": high_priority,
-            "medium": medium_priority,
-            "low": low_priority
-        }
-    }
-
-
-# ============================================
-# BONUS: Search
-# ============================================
-
-@app.get("/todos/search", response_model=List[TodoResponse])
-def search_todos(q: str, db: Session = Depends(get_db)):
-    """
-    Search todos by title.
-
-    - **q**: Search query (case-insensitive)
-    """
-    return db.query(Todo).filter(Todo.title.ilike(f"%{q}%")).all()
-
-
-# ============================================
-# BONUS: Delete All Completed
-# ============================================
-
-@app.delete("/todos/completed", status_code=status.HTTP_204_NO_CONTENT)
-def delete_completed(db: Session = Depends(get_db)):
-    """Delete all completed todos."""
-    db.query(Todo).filter(Todo.completed == True).delete()
-    db.commit()
-    return None
-
-
-# ============================================
-# BONUS: Get by Priority
-# ============================================
-
-@app.get("/todos/priority/{priority}", response_model=List[TodoResponse])
-def get_by_priority(priority: int, db: Session = Depends(get_db)):
-    """
-    Get todos by priority level.
-
-    - **priority**: 1=Low, 2=Medium, 3=High
-    """
-    if priority not in [1, 2, 3]:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Priority must be 1 (Low), 2 (Medium), or 3 (High)"
-        )
-
-    return db.query(Todo).filter(Todo.priority == priority).all()
 
 
 # ============================================
