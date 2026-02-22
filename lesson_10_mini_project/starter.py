@@ -132,11 +132,30 @@ def get_stats(db: Session = Depends(get_db)):
 
 
 # ============================================
+# BONUS CHALLENGES (add your bonus endpoints here!)
+# ============================================
+# IMPORTANT: These must go BEFORE /todos/{todo_id} below!
+# Why? FastAPI matches routes top-to-bottom. If {todo_id}
+# comes first, /todos/search would match {todo_id}="search"
+# and fail. Fixed paths must be defined before path parameters.
+#
+# 1. GET /todos/search?q=keyword
+#    - Search todos by title
+#
+# 2. DELETE /todos/completed
+#    - Delete all completed todos
+#
+# 3. GET /todos/priority/{priority}
+#    - Get todos by priority level (1, 2, or 3)
+
+
+# ============================================
 # TODO: Implement READ ONE endpoint
 # ============================================
 # GET /todos/{todo_id}
 # - Return todo if found
 # - Raise 404 if not found
+# NOTE: This must come AFTER any /todos/something fixed routes
 
 @app.get("/todos/{todo_id}", response_model=TodoResponse)
 def get_todo(todo_id: int, db: Session = Depends(get_db)):
@@ -206,23 +225,3 @@ def toggle_todo(todo_id: int, db: Session = Depends(get_db)):
     # 2. Toggle: db_todo.completed = not db_todo.completed
     # 3. Commit and refresh
     pass
-
-
-# ============================================
-# BONUS CHALLENGES
-# ============================================
-"""
-If you finish early, try adding:
-
-1. GET /todos/search?q=keyword
-   - Search todos by title
-
-2. DELETE /todos/completed
-   - Delete all completed todos
-
-3. GET /todos/priority/{priority}
-   - Get todos by priority level (1, 2, or 3)
-
-4. PUT /todos/{todo_id}/priority
-   - Update only the priority field
-"""
