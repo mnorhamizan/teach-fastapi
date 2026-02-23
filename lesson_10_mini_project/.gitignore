@@ -12,5 +12,8 @@ venv/
 # Database
 *.db
 
+# Environment
+.env
+
 # uv
 .python-version
