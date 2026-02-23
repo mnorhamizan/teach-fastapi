@@ -22,14 +22,151 @@ To run:
 API Docs: http://127.0.0.1:8000/docs
 """
 
+import os
+import json
+
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, status, Depends
+
+load_dotenv()
 from sqlalchemy.orm import Session
 from typing import List, Optional
+from openai import OpenAI
 
 # Import from our modules
 from database import engine, get_db, Base
 from models import Todo
-from schemas import TodoCreate, TodoUpdate, TodoResponse
+from schemas import (
+    TodoCreate, TodoUpdate, TodoResponse,
+    AIRequest, AIOperations, OperationResult, AIResponse,
+)
+
+
+# ============================================
+# OpenRouter AI Configuration
+# ============================================
+
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
+OPENROUTER_MODEL = "minimax/minimax-m2.5"
+
+ai_client = OpenAI(
+    base_url="https://openrouter.ai/api/v1",
+    api_key=OPENROUTER_API_KEY,
+)
+
+SYSTEM_PROMPT = """You are a todo list assistant. The user will give you a natural language instruction about their todos.
+
+You must respond with ONLY valid JSON (no markdown, no explanation) in this exact format:
+{
+  "operations": [
+    {
+      "action": "create" | "update" | "delete",
+      "title": "string (required for create)",
+      "description": "string or null (optional, for create/update)",
+      "priority": 1 | 2 | 3 (optional, for create/update, default 1),
+      "todo_id": integer (required for update/delete),
+      "completed": true | false (optional, for update)
+    }
+  ]
+}
+
+Rules:
+- For "create": title is required. description and priority are optional.
+- For "update": todo_id is required. Include only the fields to change.
+- For "delete": todo_id is required. No other fields needed.
+- You may return multiple operations in a single response.
+- Only reference todo_ids that exist in the current todo list provided below.
+- If the user's request is unclear or impossible, return {"operations": []}.
+"""
+
+
+def build_user_message(query: str, todos: list) -> str:
+    """Build the user message with current todo context."""
+    if todos:
+        todo_list = "\n".join(
+            f"  - ID:{t.id} | \"{t.title}\" | "
+            f"{'DONE' if t.completed else 'PENDING'} | "
+            f"Priority:{t.priority}"
+            for t in todos
+        )
+        context = f"Current todos:\n{todo_list}\n\n"
+    else:
+        context = "Current todos: (none)\n\n"
+
+    return f"{context}User request: {query}"
+
+
+def call_ai(query: str, todos: list) -> AIOperations:
+    """Call OpenRouter and return parsed operations."""
+    response = ai_client.chat.completions.create(
+        model=OPENROUTER_MODEL,
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": build_user_message(query, todos)},
+        ],
+        temperature=0.1,
+        max_tokens=2048,
+    )
+
+    raw_content = response.choices[0].message.content
+    parsed = json.loads(raw_content)
+    return AIOperations.model_validate(parsed)
+
+
+def _execute_create(op: dict, db: Session) -> OperationResult:
+    """Execute a create operation."""
+    todo = Todo(
+        title=op["title"],
+        description=op.get("description"),
+        priority=op.get("priority", 1),
+    )
+    db.add(todo)
+    db.flush()
+    return OperationResult(
+        action="create", success=True, todo_id=todo.id,
+        detail=f"Created '{todo.title}' (id={todo.id}, priority={todo.priority})",
+    )
+
+
+def _execute_update(op: dict, db: Session) -> OperationResult:
+    """Execute an update operation."""
+    todo_id = op["todo_id"]
+    todo = db.query(Todo).filter(Todo.id == todo_id).first()
+
+    if not todo:
+        return OperationResult(
+            action="update", success=False, todo_id=todo_id,
+            detail=f"Todo with ID {todo_id} not found",
+        )
+
+    updatable = {k: v for k, v in op.items()
+                 if k not in ("action", "todo_id") and v is not None}
+    for field, value in updatable.items():
+        setattr(todo, field, value)
+
+    return OperationResult(
+        action="update", success=True, todo_id=todo_id,
+        detail=f"Updated todo {todo_id}: {', '.join(f'{k}={v}' for k, v in updatable.items())}",
+    )
+
+
+def _execute_delete(op: dict, db: Session) -> OperationResult:
+    """Execute a delete operation."""
+    todo_id = op["todo_id"]
+    todo = db.query(Todo).filter(Todo.id == todo_id).first()
+
+    if not todo:
+        return OperationResult(
+            action="delete", success=False, todo_id=todo_id,
+            detail=f"Todo with ID {todo_id} not found",
+        )
+
+    title = todo.title
+    db.delete(todo)
+    return OperationResult(
+        action="delete", success=True, todo_id=todo_id,
+        detail=f"Deleted '{title}' (id={todo_id})",
+    )
 
 
 # ============================================
@@ -65,7 +202,8 @@ def home():
             "Delete": "DELETE /todos/{id}",
             "Toggle": "POST /todos/{id}/toggle",
             "Stats": "GET /todos/stats",
-            "Search": "GET /todos/search"
+            "Search": "GET /todos/search",
+            "AI": "POST /todos/ai"
         },
         "docs": "/docs"
     }
@@ -203,6 +341,84 @@ def get_by_priority(priority: int, db: Session = Depends(get_db)):
         )
 
     return db.query(Todo).filter(Todo.priority == priority).all()
+
+
+# ============================================
+# AI-POWERED ENDPOINT - POST /todos/ai
+# ============================================
+
+@app.post("/todos/ai", response_model=AIResponse)
+def ai_todo(request: AIRequest, db: Session = Depends(get_db)):
+    """
+    Process a natural language todo instruction using AI.
+
+    Send a plain English request and the AI will create, update,
+    or delete todos for you. Supports multiple operations at once.
+
+    Examples:
+    - "Create 3 todos for grocery shopping: milk, eggs, bread"
+    - "Mark all high priority todos as done"
+    - "Delete all completed todos"
+    """
+    if not OPENROUTER_API_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="OPENROUTER_API_KEY environment variable is not set",
+        )
+
+    # Fetch current todos so the AI knows what exists
+    all_todos = db.query(Todo).all()
+
+    # Call AI
+    try:
+        ai_ops = call_ai(request.query, all_todos)
+    except json.JSONDecodeError:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="AI returned invalid JSON. Please try rephrasing your request.",
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Failed to get AI response: {str(e)}",
+        )
+
+    # Execute each operation
+    results: list[OperationResult] = []
+
+    for op_model in ai_ops.operations:
+        op = op_model.model_dump(exclude_unset=True)
+        action = op["action"]
+
+        try:
+            if action == "create":
+                result = _execute_create(op, db)
+            elif action == "update":
+                result = _execute_update(op, db)
+            elif action == "delete":
+                result = _execute_delete(op, db)
+            else:
+                result = OperationResult(
+                    action=action, success=False,
+                    detail=f"Unknown action: {action}",
+                )
+        except Exception as e:
+            result = OperationResult(
+                action=action, success=False,
+                detail=f"Error: {str(e)}",
+            )
+
+        results.append(result)
+
+    db.commit()
+
+    succeeded = sum(1 for r in results if r.success)
+    return AIResponse(
+        query=request.query,
+        operations_requested=len(results),
+        operations_succeeded=succeeded,
+        results=results,
+    )
 
 
 # ============================================
