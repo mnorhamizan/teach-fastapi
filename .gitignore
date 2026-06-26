@@ -1,1 +1,10 @@
 teaching_guides/
+
+# Python / tooling artifacts
+__pycache__/
+*.py[cod]
+.venv/
+
+# Local env & data
+.env
+*.db
