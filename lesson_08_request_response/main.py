@@ -41,6 +41,9 @@ def home():
 @app.get("/users/{user_id}")
 def get_user(user_id: int):
     """Get a user by their ID."""
+    # validate if the user exists
+    # if it doesnt, return 404
+    # if it does, return the record
     return {
         "user_id": user_id,
         "name": f"User {user_id}",
@@ -121,6 +124,7 @@ def search_products(
     - min_price: minimum price (default: 0)
     - max_price: maximum price (default: 10000)
     """
+    
     return {
         "query": q,
         "category": category,
@@ -257,6 +261,9 @@ def create_customer(customer: CustomerCreate):
         "tags": ["premium", "verified"]
     }
     """
+    # create address
+    # create customer, attach address
+    # return 201
     return {
         "message": "Customer created",
         "customer": customer
@@ -296,6 +303,8 @@ def get_user_api(user_id: int):
 @app.get("/api/users", response_model=UserListResponse)
 def list_users_api():
     """Get all users with a defined response structure."""
+    # user limit 3
+    # return
     users = [
         UserResponse(id=1, name="Alice", email="alice@example.com", is_active=True),
         UserResponse(id=2, name="Bob", email="bob@example.com", is_active=True),
