@@ -14,7 +14,10 @@ Project Structure:
     └── solution.py    # This file
 
 Installation:
-    pip install fastapi uvicorn sqlalchemy
+    pip install fastapi uvicorn sqlalchemy openai python-dotenv
+
+Environment:
+    Set OPENROUTER_API_KEY in a .env file (only the /todos/ai endpoint needs it).
 
 To run:
     uvicorn solution:app --reload
