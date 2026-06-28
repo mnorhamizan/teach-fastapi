@@ -1,0 +1,7 @@
+# Secrets
+.env
+
+# Local data & build artifacts
+rag.db
+.venv/
+__pycache__/
